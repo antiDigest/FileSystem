@@ -23,7 +23,16 @@ class Server : protected Socket {
     vector<string> files;
 
    public:
-    Server(char *argv[]) : Socket(argv) { directory = argv[3]; }
+    Server(int argc, char *argv[]) : Socket(argv) {
+        if (argc >= 4)
+            directory = argv[3];
+        else {
+            directory = id + "Directory";
+            Logger("Directory: " + directory);
+            const int dir_err =
+                mkdir(directory.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        }
+    }
 
     // Infinite thread sending heartbeat messages to mserver
     void heartBeat() {
@@ -131,12 +140,12 @@ class Server : protected Socket {
 };
 
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "usage %s ID port directory_path\n", argv[0]);
+    if (argc < 3) {
+        fprintf(stderr, "usage %s ID port\n", argv[0]);
         exit(1);
     }
 
-    Server *server = new Server(argv);
+    Server *server = new Server(argc, argv);
 
     std::thread listenerThread(&Server::listener, server);
     std::thread heartbeatThread(&Server::heartBeat, server);
