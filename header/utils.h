@@ -25,8 +25,7 @@ string globalTime() {
 // @message - string to log
 void Logger(string message, bool terminal = true) {
     logger << "[" << globalTime() << "]::" << message << endl;
-    if (terminal == true)
-        cout << "[" << globalTime() << "]::" << message << endl;
+    if (terminal) cout << "[" << globalTime() << "]::" << message << endl;
     logger.flush();
     return;
 }

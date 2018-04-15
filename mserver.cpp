@@ -253,7 +253,7 @@ class Mserver : public Socket {
                        " needs to update chunk " +
                        getChunkFile(fileName, chunkName));
                 // cout << getChunkFile(fileName, chunkName) << endl;
-                allServers[index].chunksNeedUpdate.push_back(
+                allServers[index].chunksNeedUpdate.insert(
                     getChunkFile(fileName, chunkName));
             }
         }
@@ -361,6 +361,7 @@ class Mserver : public Socket {
             for (int i = 0; i < allServers.size(); i++) {
                 allServers[i].checkAlive();
             }
+            sleep(1);
         }
     }
 

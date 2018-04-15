@@ -17,7 +17,7 @@ class ProcessInfo {
     time_t aliveTime = time(0);
     bool alive = true;
     vector<string> files;
-    vector<string> chunksNeedUpdate;
+    set<string> chunksNeedUpdate;
     bool ready = true;
 
     void setAlive() {
