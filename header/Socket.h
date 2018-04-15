@@ -126,7 +126,7 @@ class Socket {
         n = write(fd, messageString(m).c_str(), 2048);
         if (n < 0) error("ERROR writing to socket");
 
-        if (message->type != "heartbeat")
+        if (m->type != "heartbeat")
             Logger("[SENT TO " + destID + "]: " + m->message);
         else
             Logger("[SENT TO " + destID + "]: " + m->message, false);
