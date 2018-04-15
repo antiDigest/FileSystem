@@ -15,7 +15,7 @@ int getChunkNum(int size) { return size / CHUNKSIZE; }
 
 // Get the number of bytes in the file
 int getChunkSize(string chunk) {
-    ifstream file(chunk);
+    ifstream file(chunk, ios::binary | ios::ate);
     return file.tellg();
 }
 
