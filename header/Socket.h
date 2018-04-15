@@ -127,7 +127,7 @@ class Socket {
         if (n < 0) error("ERROR writing to socket");
 
         Logger("[SENT TO " + destID + "]: " + m->message,
-               !(message->type == "heartbeat"));
+               !(m->type == "heartbeat"));
     }
 
     // Receive a message from the source (fd) and update clock using message
