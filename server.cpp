@@ -39,7 +39,7 @@ class Server : protected Socket {
         while (1) {
             ProcessInfo p = mserver[0];
             int mserverfd = this->connectTo(p.hostname, p.port);
-            Logger("[HEARTBEAT]");
+            Logger("[HEARTBEAT]", false);
             files = readDirectory(directory);
             send(personalfd, mserverfd, "heartbeat", makeFileTuple(files),
                  p.processID);
@@ -87,6 +87,7 @@ class Server : protected Socket {
             createEmptyChunk(m);
         } else if (m->type == "head") {
             int size = getChunkSize(m->fileName);
+            cout << size << endl;
             writeReply(m, newsockfd, "head", to_string(size));
         } else if (m->type == "recover") {
             int size = getChunkSize(m->fileName);
