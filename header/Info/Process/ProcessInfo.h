@@ -4,6 +4,8 @@
     Version 0: 3/14/2018
 */
 
+using namespace std;
+
 // Store information of a process
 class ProcessInfo {
    public:
