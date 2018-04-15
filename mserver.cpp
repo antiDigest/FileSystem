@@ -313,7 +313,7 @@ class Mserver : public Socket {
                 ProcessInfo p = allServers[index];
                 cout << p.processID << endl;
                 int fdBroken = connectTo(p.hostname, p.port);
-                send(personalfd, fdBroken, "head", "", id, 2, chunk);
+                send(personalfd, fdBroken, "head", "", p.processID, 2, chunk);
                 Message* msg = receive(fdBroken);
 
                 vector<ProcessInfo> others = findFileServers(allServers, chunk);
@@ -323,8 +323,8 @@ class Mserver : public Socket {
                     // Connecting to a server which was alive
                     cout << another.processID << endl;
                     int fdUpdated = connectTo(another.hostname, another.port);
-                    send(personalfd, fdUpdated, "recover", msg->message, id, 2,
-                         chunk);
+                    send(personalfd, fdUpdated, "recover", msg->message,
+                         another.processID, 2, chunk);
                     msg = receive(fdUpdated);
                     close(fdUpdated);
                     break;
@@ -332,8 +332,8 @@ class Mserver : public Socket {
 
                 // Connecting to broken server again
                 fdBroken = connectTo(p.hostname, p.port);
-                send(personalfd, fdBroken, "update", msg->message, id, 2,
-                     chunk);
+                send(personalfd, fdBroken, "update", msg->message, p.processID,
+                     2, chunk);
                 msg = receive(fdBroken);
             }
         else {
