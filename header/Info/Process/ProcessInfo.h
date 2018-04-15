@@ -17,11 +17,22 @@ class ProcessInfo {
     time_t aliveTime = time(0);
     bool alive = true;
     vector<string> files;
+    vector<string> chunksNeedUpdate;
+    bool ready = true;
 
     void setAlive() {
         alive = true;
         aliveTime = time(0);
     }
+
+    bool getReady() { return ready; }
+
+    void setReady() {
+        alive = true;
+        ready = true;
+    }
+
+    void resetReady() { ready = false; }
 
     void checkAlive() {
         float aliveLast = (time(0) - getAliveTime());
@@ -31,7 +42,10 @@ class ProcessInfo {
         }
     }
 
-    void resetAlive() { alive = false; }
+    void resetAlive() {
+        alive = false;
+        ready = false;
+    }
 
     bool getAlive() { return alive; }
 

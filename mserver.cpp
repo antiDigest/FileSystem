@@ -118,10 +118,10 @@ class Mserver : public Socket {
 
             if (getOffset(m->offset) + m->byteCount > CHUNKSIZE) {
                 readGreater(m, file, to_string(getChunkNum(m->offset)),
-                            makeTuple(threeServers), m->offset, m->byteCount);
+                            threeServers, m->offset, m->byteCount);
             } else {
                 sizeSmaller(m, file, to_string(getChunkNum(m->offset)),
-                            makeTuple(threeServers), m->offset, m->byteCount);
+                            threeServers, m->offset, m->byteCount);
             }
         } catch (char* e) {
             Logger(e);
@@ -150,11 +150,10 @@ class Mserver : public Socket {
             int chunkSize = getOffset(file->size);
 
             if (messageSize > (CHUNKSIZE - chunkSize)) {
-                sizeGreater(m, file, chunkName, makeTuple(threeServers),
-                            chunkSize, messageSize);
-            } else {
-                sizeSmaller(m, file, chunkName, makeTuple(threeServers), 0,
+                sizeGreater(m, file, chunkName, threeServers, chunkSize,
                             messageSize);
+            } else {
+                sizeSmaller(m, file, chunkName, threeServers, 0, messageSize);
             }
         } catch (char* e) {
             Logger(e);
@@ -181,8 +180,8 @@ class Mserver : public Socket {
     // The message is divided into two parts. The first part completes
     // 8192 bytes on the last available chunk and the second part is written to
     // a newly created chunk
-    void readGreater(Message* m, File* file, string chunkName, string server,
-                     int offset, int byteCount) {
+    void readGreater(Message* m, File* file, string chunkName,
+                     vector<ProcessInfo> server, int offset, int byteCount) {
         int sizeThisChunk = byteCount - (CHUNKSIZE - offset);
         int extraByteCount = byteCount - sizeThisChunk;
 
@@ -199,8 +198,7 @@ class Mserver : public Socket {
         }
 
         m->sourceID = source;  // TODO: I should not have to do this
-        sizeSmaller(m, file, chunkName, makeTuple(threeServers), 0,
-                    extraByteCount);
+        sizeSmaller(m, file, chunkName, threeServers, 0, extraByteCount);
     }
 
     // When size of the write message size + size of the chunk is greater than
@@ -208,8 +206,9 @@ class Mserver : public Socket {
     // The message is divided into two parts. The first part completes
     // 8192 bytes on the last available chunk and the second part is written to
     // a newly created chunk
-    void sizeGreater(Message* m, File* file, string chunkName, string server,
-                     int chunkSize, int messageSize) {
+    void sizeGreater(Message* m, File* file, string chunkName,
+                     vector<ProcessInfo> server, int chunkSize,
+                     int messageSize) {
         int sizeThisChunk = messageSize - (CHUNKSIZE - chunkSize);
         int sizeNewChunk = messageSize - sizeThisChunk;
 
@@ -225,7 +224,7 @@ class Mserver : public Socket {
             connectAndReply(m, "FAILED", "FAILED");
             return;
         }
-        sizeSmaller(m, file, chunkName, makeTuple(threeServers), sizeThisChunk,
+        sizeSmaller(m, file, chunkName, threeServers, sizeThisChunk,
                     sizeNewChunk);
     }
 
@@ -233,28 +232,40 @@ class Mserver : public Socket {
     // 8192 bytes.
     // The message is written to the last available chunk of the file.
     void sizeSmaller(Message* m, File* file, string chunkName,
-                     string threeServers, int offset, int byteCount) {
+                     vector<ProcessInfo> servers, int offset, int byteCount) {
         m->offset = offset;
         m->byteCount = byteCount;
-        replyMeta(m, file->name, chunkName, threeServers);
+        replyMeta(m, file->name, chunkName, servers);
     }
 
     // reply with the meta information of reading or writing to a file. The
     // meta-server replies with the chunk number, the server the file is on, and
     // the file name
     void replyMeta(Message* m, string fileName, string chunkName,
-                   string server) {
-        MetaInfo* meta = new MetaInfo(fileName, chunkName, server);
+                   vector<ProcessInfo> servers) {
+        vector<ProcessInfo> set;
+        for (ProcessInfo server : servers) {
+            if (server.getReady())
+                set.push_back(server);
+            else {
+                int index = findServerIndex(allServers, server.processID);
+                Logger("[SERVER DOWN]: " + allServers[index].processID +
+                       " needs to update chunk " +
+                       getChunkFile(fileName, chunkName));
+                // cout << getChunkFile(fileName, chunkName) << endl;
+                allServers[index].chunksNeedUpdate.push_back(
+                    getChunkFile(fileName, chunkName));
+            }
+        }
+
+        MetaInfo* meta = new MetaInfo(fileName, chunkName, makeTuple(set));
         string line = infoToString(meta);
 
-        connectAndReply(m, "meta", line);
-
-        // TODO: check alive, if not, store how many files it has to update
-        // if (server.getAlive()) {
-        //     connectAndReply(m, "meta", line);
-        // } else {
-        //     connectAndReply(m, "FAILED", "FAILED");
-        // }
+        if (!set.empty()) {
+            connectAndReply(m, "meta", line);
+        } else {
+            connectAndReply(m, "FAILED", "FAILED");
+        }
     }
 
     // Creating new chunk:
@@ -291,12 +302,49 @@ class Mserver : public Socket {
         allServers.at(index) = server;
     }
 
+    // Handle the case when a chunk comes back alive after being dead for some
+    // time
+    void recoveringServer(int index) {
+        if (!allServers[index].chunksNeedUpdate.empty())
+            for (string chunk : allServers[index].chunksNeedUpdate) {
+                Logger("[RECOVERING]: Updating file: " + chunk);
+                ProcessInfo p = allServers[index];
+                int fdBroken = connectTo(p.hostname, p.port);
+                send(personalfd, fdBroken, "head", "", id, 2, chunk);
+                Message* msg = receive(fdBroken);
+
+                vector<ProcessInfo> others = findFileServers(allServers, chunk);
+                for (ProcessInfo another : others) {
+                    if (another.processID == p.processID) continue;
+                    int fdUpdated = connectTo(another.hostname, another.port);
+                    send(personalfd, fdUpdated, "recover", msg->message, id, 2,
+                         chunk);
+                    msg = receive(fdUpdated);
+                    close(fdUpdated);
+                    break;
+                }
+                send(personalfd, fdBroken, "update", msg->message, id, 2,
+                     chunk);
+            }
+        else {
+            Logger("[RECOVERING]: No chunks need an update.");
+        }
+        allServers[index].setReady();
+    }
+
     // Register the read heartbeat
     // * Updates the alive time at the Server info
     void registerHeartBeat(Message* m, int index) {
         Logger("[HEARTBEAT] " + m->sourceID);
-        allServers[index].setAlive();
-        allServers[index].updateFiles(m->message);
+        if (allServers[index].getAlive()) {
+            allServers[index].setAlive();
+            allServers[index].updateFiles(m->message);
+        } else {
+            allServers[index].setAlive();
+            allServers[index].updateFiles(m->message);
+            Logger("[RECOVERING]: " + m->sourceID);
+            recoveringServer(index);
+        }
     }
 
     // Continuous thread to check if which server is not alive.

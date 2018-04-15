@@ -49,7 +49,9 @@ int findServerIndex(vector<ProcessInfo> clients, string name) {
     return -1;
 }
 
+// Check if the process has the file we are looking for or not
 bool hasFile(ProcessInfo client, string file) {
+    // if (!client.getReady()) return false;
     vector<string> files = client.files;
     for (string f : files) {
         if (f == file) return true;
@@ -79,7 +81,7 @@ vector<ProcessInfo> findFileServers(vector<ProcessInfo> clients, string file) {
 string makeTuple(vector<ProcessInfo> set) {
     if (set.empty()) throw "Empty server list";
     string tuple = "";
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < set.size(); i++) {
         if (i > 0)
             tuple += "-" + set[i].processID;
         else

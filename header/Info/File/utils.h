@@ -13,6 +13,20 @@ int getOffset(int size) { return size % CHUNKSIZE; }
 // chunk where the information would be found
 int getChunkNum(int size) { return size / CHUNKSIZE; }
 
+// Get the number of bytes in the file
+int getChunkSize(string chunk) {
+    int size;
+
+    ifstream file(chunk);
+    file.seekg(0, file.end);
+    size = file.tellg();
+    file.close();
+
+    assert(size <= CHUNKSIZE && "File size should be less than CHUNKSIZE");
+
+    return size;
+}
+
 // FileInfo to string
 string readFileString(File* file) {
     return file->name + "," + to_string(file->size) + "," +

@@ -85,6 +85,18 @@ class Server : protected Socket {
     void checkMessage(Message *m, int newsockfd) {
         if (m->type == "create") {
             createEmptyChunk(m);
+        } else if (m->type == "head") {
+            int size = getChunkSize(m->fileName);
+            writeReply(m, newsockfd, "head", to_string(size));
+        } else if (m->type == "recover") {
+            int size = getChunkSize(m->fileName);
+            int offset = stoi(m->message) + 1;
+            string line = readFile(directory + "/" + m->fileName, offset,
+                                   (size - offset));
+            writeReply(m, newsockfd, "recover", line);
+        } else if (m->type == "update") {
+            writeToFile(directory + "/" + m->fileName, m->message);
+            writeReply(m, newsockfd, "update", m->message);
         } else {
             this->checkReadWrite(m, newsockfd);
         }
