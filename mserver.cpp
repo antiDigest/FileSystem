@@ -331,7 +331,7 @@ class Mserver : public Socket {
                 }
 
                 // Connecting to broken server again
-                int fdBroken = connectTo(p.hostname, p.port);
+                fdBroken = connectTo(p.hostname, p.port);
                 send(personalfd, fdBroken, "update", msg->message, id, 2,
                      chunk);
                 msg = receive(fdBroken);
