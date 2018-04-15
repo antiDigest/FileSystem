@@ -17,7 +17,7 @@
 // * to perform a write, gets meta-data of file from mServer and
 // requests the related Server to append the line
 // * Has a unique ID (given by the user)
-class Process : protected Socket {
+class Process : public Socket {
    private:
     bool pendingEnquiry = false, pendingRead = false, pendingWrite = false;
     string pendingWriteMessage;
@@ -70,8 +70,17 @@ class Process : protected Socket {
         if (m->type == "meta") {
             MetaInfo *meta = stringToInfo(m->message);
             m->fileName = meta->getChunkFile();
-            ProcessInfo server = findInVector(allServers, meta->server);
-            criticalSection(m, server);
+            cout << meta->server << endl;
+            vector<string> threeServers = getFromTuple(meta->server);
+            if (m->readWrite == 1) {
+                ProcessInfo server = findInVector(allServers, threeServers[0]);
+                criticalSection(m, server);
+            } else if (m->readWrite == 2) {
+                for (string s : threeServers) {
+                    ProcessInfo server = findInVector(allServers, s);
+                    criticalSection(m, server);
+                }
+            }
         }
         // Failed response from meta-server
         else if (m->type == "FAILED") {
@@ -81,11 +90,6 @@ class Process : protected Socket {
             } else {
                 pendingWrite = false;
             }
-        }
-        // Enquiry response
-        else if (m->type == "enquiry") {
-            // TODO: write response from a server
-            allFiles = getFiles(m->message);
         }
 
         throw "BREAKING CONNECTION";
@@ -110,25 +114,21 @@ class Process : protected Socket {
 
     // gets MetaData from the meta-server
     // requests the meta-server returned server for the resource
-    void readRequest() {
-        string fileName = "file3";
+    void readRequest(string fileName, int offset, int byteCount) {
         int rw = 1;
-        string message = "request";
-        int byteCount = 100;
-        int offset = 14000;
-
+        string message = "read request";
         getMetaData(rw, message, fileName, offset, byteCount);
     }
 
     // gets MetaData from the meta-server
     // requests the meta-server returned server for the resource
-    void writeRequest() {
-        string fileName = "file1";
+    void writeRequest(string fileName) {
         int rw = 2;
-        string message =
-            "This is a random line I would like to write to a file\n";
 
-        getMetaData(rw, message, fileName);
+        cout << "Message (Enter/Return ends message): ";
+        string content;
+        getline(cin, content);
+        getMetaData(rw, content, fileName);
     }
 
     // Section where the client corresponds with the server for read/write
@@ -195,29 +195,22 @@ class Process : protected Socket {
 // IO for continuous read and write messages
 // @client - Process
 void io(Process *client) {
-    int rw = rand() % 10;
-    cin >> rw;
-    int i = 0;
-    while (i < rw) {
-        sleep(rw);
-        client->writeRequest();
-        sleep(rw);
-        client->readRequest();
-        i++;
-    }
-}
-
-// IO for continuous enquiry messages
-// @client - Process
-void eio(Process *client) {
-    int rw = rand() % 1;
-    int i = 0;
-    while (i < 3) {
-        sleep(2);
-        client->enquiry();
-        // sleep(2);
-        // client->writeRequest();
-        i++;
+    while (1) {
+        cout << endl << "Welcome " + client->id + " $> ";
+        string rw, file;
+        cin >> rw;
+        if (rw == "read") {
+            cin >> file;
+            int offset, byteCount;
+            cin >> offset;
+            cin >> byteCount;
+            client->readRequest(file, offset, byteCount);
+        } else if (rw == "write") {
+            cin >> file;
+            client->writeRequest(file);
+        } else if (rw == "exit") {
+            break;
+        }
     }
 }
 

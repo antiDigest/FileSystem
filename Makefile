@@ -19,10 +19,10 @@ client.out: mserver.cpp server.cpp client.cpp include
 	g++ -std=c++11 -pthread client.cpp -o client.out
 
 mserver: mserver.out
-	./mserver.out $(ID) $(PORT) $(DIR)
+	./mserver.out $(ID) $(PORT)
 
 server: server.out
-	./server.out $(ID) $(PORT) $(DIR)
+	./server.out $(ID) $(PORT)
 
 client: client.out
 	./client.out $(ID) $(PORT)

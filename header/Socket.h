@@ -15,12 +15,12 @@
 class Socket {
    protected:
     int clock = 0;
-    string id;
     int personalfd;
     int port;
     string directory;
 
    public:
+    string id;
     int portno;
     socklen_t clilen;
     char *buffer;
@@ -180,6 +180,7 @@ class Socket {
     // @type - message type
     // @text - string to send
     void connectAndReply(Message *m, string type, string text) {
+        cout << "We are already here with " << m->sourceID << endl;
         ProcessInfo p = findInVector(allClients, m->sourceID);
         int fd = connectTo(p.hostname, p.port);
         m->type = type;

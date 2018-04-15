@@ -36,7 +36,7 @@ ProcessInfo findInVector(vector<ProcessInfo> clients, string name) {
     for (ProcessInfo client : clients) {
         if (client.processID == name) return client;
     }
-    throw "Not found";
+    throw "Process Not found";
 }
 
 // Find the index of ID in a vector of clients/servers
@@ -49,15 +49,54 @@ int findServerIndex(vector<ProcessInfo> clients, string name) {
     return -1;
 }
 
+bool hasFile(ProcessInfo client, string file) {
+    vector<string> files = client.files;
+    for (string f : files) {
+        if (f == file) return true;
+    }
+    return false;
+}
+
 // Find if a server has a file in a vector of ProcessInfo (servers)
 ProcessInfo findFileServer(vector<ProcessInfo> clients, string file) {
     for (ProcessInfo client : clients) {
-        vector<string> files = client.files;
-        for (string f : files) {
-            if (f == file) return client;
-        }
+        if (hasFile(client, file)) return client;
     }
     throw "File not found on any active servers";
+}
+
+// Find the three servers having a file in a vector of ProcessInfo (servers)
+vector<ProcessInfo> findFileServers(vector<ProcessInfo> clients, string file) {
+    vector<ProcessInfo> set;
+    for (ProcessInfo client : clients) {
+        if (hasFile(client, file)) set.push_back(client);
+    }
+    if (set.empty()) throw "File not found on any active servers";
+    return set;
+}
+
+// Make a tuple of server ids
+string makeTuple(vector<ProcessInfo> set) {
+    if (set.empty()) throw "Empty server list";
+    string tuple = "";
+    for (int i = 0; i < 3; i++) {
+        if (i > 0)
+            tuple += "-" + set[i].processID;
+        else
+            tuple += set[i].processID;
+    }
+    return tuple;
+}
+
+// Get the server IDs from the tuple of server IDs
+vector<string> getFromTuple(string tuple) {
+    vector<string> allfiles;
+    istringstream line_stream(tuple);
+    string file;
+    while (getline(line_stream, file, '-')) {
+        allfiles.push_back(file);
+    }
+    return allfiles;
 }
 
 // Check if all of the servers are dead
@@ -72,6 +111,19 @@ bool allDead(vector<ProcessInfo> set) {
     return deadCount == set.size();
 }
 
+template <class T>
+T randomUnique(T begin, T end, size_t num_random) {
+    size_t left = std::distance(begin, end);
+    while (num_random--) {
+        T r = begin;
+        std::advance(r, rand() % left);
+        std::swap(*begin, *r);
+        ++begin;
+        --left;
+    }
+    return begin;
+}
+
 // returns a random Process in the vector
 ProcessInfo randomSelect(vector<ProcessInfo> set) {
     if (allDead(set)) throw "ALL SERVERS ARE DEAD";
@@ -81,4 +133,17 @@ ProcessInfo randomSelect(vector<ProcessInfo> set) {
         return set[randomIndex];
     else
         return randomSelect(set);
+}
+
+// returns a random Process in the vector
+vector<ProcessInfo> randomSelectThree(vector<ProcessInfo> set) {
+    if (allDead(set)) throw "ALL SERVERS ARE DEAD";
+
+    vector<ProcessInfo> newSet;
+    randomUnique(set.begin(), set.end(), 3);
+    for (int i = 0; i < 3; i++) {
+        newSet.push_back(set[i]);
+    }
+
+    return newSet;
 }

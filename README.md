@@ -5,13 +5,13 @@ Google File System (Spoof)
 
 ### Version 0.1:
 
-* Span read to more than one file
+* ~Span read to more than one file~
 
-* Add replicas
+* ~Add replicas~
 
-* MServer creates chunk at three servers
+* ~MServer creates chunk at three servers~
 
-* Writing to a chunk writes to all replicas
+* ~Writing to a chunk writes to all replicas~
 
 * Write uses two-phase protocol to commit write
 

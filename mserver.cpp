@@ -100,15 +100,29 @@ class Mserver : public Socket {
         }
 
         updateCsv("csvs/files.csv", files);
+        Logger("Updated file info !");
     }
 
     // Checks what response should be given if the client wants to read a file
     void checkRead(Message* m) {
         try {
+            File* file = findInVector(files, m->fileName);
+            if (file == NULL) {
+                connectAndReply(m, "FAILED", "FAILED");
+            }
+
             string chunkName = to_string(getChunkNum(m->offset));
             string name = getChunkFile(m->fileName, chunkName);
-            ProcessInfo server = findFileServer(allServers, name);
-            replyMeta(m, m->fileName, chunkName, server);
+            vector<ProcessInfo> threeServers =
+                findFileServers(allServers, name);
+
+            if (getOffset(m->offset) + m->byteCount > CHUNKSIZE) {
+                readGreater(m, file, to_string(getChunkNum(m->offset)),
+                            makeTuple(threeServers), m->offset, m->byteCount);
+            } else {
+                sizeSmaller(m, file, to_string(getChunkNum(m->offset)),
+                            makeTuple(threeServers), m->offset, m->byteCount);
+            }
         } catch (char* e) {
             Logger(e);
             Logger("[FAILED]");
@@ -129,15 +143,18 @@ class Mserver : public Socket {
             string chunkName = to_string(file->chunks - 1);
             string name = getChunkFile(file->name, chunkName);
 
-            ProcessInfo server = findFileServer(allServers, name);
+            vector<ProcessInfo> threeServers =
+                findFileServers(allServers, name);
 
             int messageSize = m->message.length();
             int chunkSize = getOffset(file->size);
 
             if (messageSize > (CHUNKSIZE - chunkSize)) {
-                sizeGreater(m, file, chunkName, server, chunkSize, messageSize);
+                sizeGreater(m, file, chunkName, makeTuple(threeServers),
+                            chunkSize, messageSize);
             } else {
-                sizeSmaller(m, file, chunkName, server, 0, messageSize);
+                sizeSmaller(m, file, chunkName, makeTuple(threeServers), 0,
+                            messageSize);
             }
         } catch (char* e) {
             Logger(e);
@@ -164,41 +181,80 @@ class Mserver : public Socket {
     // The message is divided into two parts. The first part completes
     // 8192 bytes on the last available chunk and the second part is written to
     // a newly created chunk
-    void sizeGreater(Message* m, File* file, string chunkName,
-                     ProcessInfo server, int chunkSize, int messageSize) {
+    void readGreater(Message* m, File* file, string chunkName, string server,
+                     int offset, int byteCount) {
+        int sizeThisChunk = byteCount - (CHUNKSIZE - offset);
+        int extraByteCount = byteCount - sizeThisChunk;
+
+        string source = m->sourceID;
+        sizeSmaller(m, file, chunkName, server, offset, sizeThisChunk);
+        chunkName = to_string(stoi(chunkName) + 1);
+        vector<ProcessInfo> threeServers;
+        try {
+            threeServers = findFileServers(allServers,
+                                           getChunkFile(file->name, chunkName));
+        } catch (char* e) {
+            connectAndReply(m, "FAILED", "FAILED");
+            return;
+        }
+
+        m->sourceID = source;  // TODO: I should not have to do this
+        sizeSmaller(m, file, chunkName, makeTuple(threeServers), 0,
+                    extraByteCount);
+    }
+
+    // When size of the write message size + size of the chunk is greater than
+    // 8192 bytes.
+    // The message is divided into two parts. The first part completes
+    // 8192 bytes on the last available chunk and the second part is written to
+    // a newly created chunk
+    void sizeGreater(Message* m, File* file, string chunkName, string server,
+                     int chunkSize, int messageSize) {
         int sizeThisChunk = messageSize - (CHUNKSIZE - chunkSize);
         int sizeNewChunk = messageSize - sizeThisChunk;
 
         sizeSmaller(m, file, chunkName, server, 0, sizeThisChunk);
 
         chunkName = to_string(stoi(chunkName) + 1);
-        ProcessInfo newServer = createNewChunk(file, chunkName, sizeNewChunk);
-        sizeSmaller(m, file, chunkName, newServer, sizeThisChunk, sizeNewChunk);
+        createNewChunk(file, chunkName);
+        vector<ProcessInfo> threeServers;
+        try {
+            threeServers = findFileServers(allServers,
+                                           getChunkFile(file->name, chunkName));
+        } catch (char* e) {
+            connectAndReply(m, "FAILED", "FAILED");
+            return;
+        }
+        sizeSmaller(m, file, chunkName, makeTuple(threeServers), sizeThisChunk,
+                    sizeNewChunk);
     }
 
     // When size of the write message size + size of the chunk is less than
     // 8192 bytes.
     // The message is written to the last available chunk of the file.
     void sizeSmaller(Message* m, File* file, string chunkName,
-                     ProcessInfo server, int offset, int byteCount) {
+                     string threeServers, int offset, int byteCount) {
         m->offset = offset;
         m->byteCount = byteCount;
-        replyMeta(m, file->name, chunkName, server);
+        replyMeta(m, file->name, chunkName, threeServers);
     }
 
     // reply with the meta information of reading or writing to a file. The
     // meta-server replies with the chunk number, the server the file is on, and
     // the file name
     void replyMeta(Message* m, string fileName, string chunkName,
-                   ProcessInfo server) {
-        MetaInfo* meta = new MetaInfo(fileName, chunkName, server.processID);
+                   string server) {
+        MetaInfo* meta = new MetaInfo(fileName, chunkName, server);
         string line = infoToString(meta);
 
-        if (server.getAlive()) {
-            connectAndReply(m, "meta", line);
-        } else {
-            connectAndReply(m, "FAILED", "FAILED");
-        }
+        connectAndReply(m, "meta", line);
+
+        // TODO: check alive, if not, store how many files it has to update
+        // if (server.getAlive()) {
+        //     connectAndReply(m, "meta", line);
+        // } else {
+        //     connectAndReply(m, "FAILED", "FAILED");
+        // }
     }
 
     // Creating new chunk:
@@ -206,31 +262,20 @@ class Mserver : public Socket {
     // * connects to the server and tells it to create a new chunk
     // * updates meta data about the server
     void createNewChunk(File* file, string chunkName) {
-        ProcessInfo server = randomSelect(allServers);
-        Logger("[Creating new file chunk at]: " + server.processID);
-        string fileName = getChunkFile(file->name, chunkName);
-        connectAndSend(server.processID, "create", "", 2, fileName);
-        updateMetaData(file, server);
-    }
-
-    // Creating new chunk:
-    // * randomly selects a server.
-    // * connects to the server and tells it to create a new chunk
-    // * updates meta data about the server
-    // * returns the server id to which the chunk was created
-    ProcessInfo createNewChunk(File* file, string chunkName, int msgSize) {
-        ProcessInfo server = randomSelect(allServers);
-        Logger("[Creating new file chunk at]: " + server.processID);
-        string fileName = getChunkFile(file->name, chunkName);
-        connectAndSend(server.processID, "create", "", 2, fileName);
-        updateMetaData(file, server, msgSize);
-        return server;
+        int selected = 0;
+        vector<ProcessInfo> threeServers = randomSelectThree(allServers);
+        file->chunks++;
+        for (ProcessInfo server : threeServers) {
+            Logger("[Creating new file chunk at]: " + server.processID);
+            string fileName = getChunkFile(file->name, chunkName);
+            connectAndSend(server.processID, "create", "", 2, fileName);
+            updateMetaData(file, server);
+        }
     }
 
     // Updating meta-data in the meta Directory
     void updateMetaData(File* file, ProcessInfo server, int msgSize = 0) {
         server.addFile(getChunkFile(file->name, to_string(file->chunks)));
-        file->chunks++;
         file->size += msgSize;
         Logger("[Meta-Data Updated]");
         updateServers(server);
@@ -280,8 +325,8 @@ void io(Mserver* mserver) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "usage %s ID port directory_path\n", argv[0]);
+    if (argc < 3) {
+        fprintf(stderr, "usage %s ID port\n", argv[0]);
         exit(1);
     }
 

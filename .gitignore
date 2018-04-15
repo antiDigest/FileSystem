@@ -1,6 +1,8 @@
 *.DS_Store
 */logs
 */server*Directory
+logs/
+server*Directory/
 project*/logs
 project*/server*Directory
 FileSystem/logs
