@@ -308,14 +308,20 @@ class Mserver : public Socket {
         if (!allServers[index].chunksNeedUpdate.empty())
             for (string chunk : allServers[index].chunksNeedUpdate) {
                 Logger("[RECOVERING]: Updating file: " + chunk);
+
+                // Connecting to server which was down
                 ProcessInfo p = allServers[index];
+                cout << p.processID << endl;
                 int fdBroken = connectTo(p.hostname, p.port);
                 send(personalfd, fdBroken, "head", "", id, 2, chunk);
                 Message* msg = receive(fdBroken);
 
                 vector<ProcessInfo> others = findFileServers(allServers, chunk);
                 for (ProcessInfo another : others) {
-                    if (another.processID == p.processID) continue;
+                    if (another.processID == p.processID || !another.getReady())
+                        continue;
+                    // Connecting to a server which was alive
+                    cout << another.processID << endl;
                     int fdUpdated = connectTo(another.hostname, another.port);
                     send(personalfd, fdUpdated, "recover", msg->message, id, 2,
                          chunk);
@@ -335,7 +341,7 @@ class Mserver : public Socket {
     // Register the read heartbeat
     // * Updates the alive time at the Server info
     void registerHeartBeat(Message* m, int index) {
-        Logger("[HEARTBEAT] " + m->sourceID);
+        Logger("[HEARTBEAT] " + m->sourceID, false);
         if (allServers[index].getAlive()) {
             allServers[index].setAlive();
             allServers[index].updateFiles(m->message);

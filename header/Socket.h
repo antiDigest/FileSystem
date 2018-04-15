@@ -122,6 +122,7 @@ class Socket {
     // @fd - destination file descriptor
     // @destID - ID of the receiver (only for logging)
     void send(Message *m, int fd, string destID) {
+        m->timestamp = clock;
         n = write(fd, messageString(m).c_str(), 2048);
         if (n < 0) error("ERROR writing to socket");
 
@@ -145,8 +146,13 @@ class Socket {
         Message *message = getMessage(msg);
         setClock(message->timestamp);
 
-        Logger("[RECEIVED FROM " + message->sourceID +
-               "]: " + message->message);
+        if (message->message != "heartbeat")
+            Logger("[RECEIVED FROM " + message->sourceID +
+                   "]: " + message->message);
+        else
+            Logger("[RECEIVED FROM " + message->sourceID +
+                       "]: " + message->message,
+                   false);
 
         return message;
     }
@@ -180,7 +186,6 @@ class Socket {
     // @type - message type
     // @text - string to send
     void connectAndReply(Message *m, string type, string text) {
-        cout << "We are already here with " << m->sourceID << endl;
         ProcessInfo p = findInVector(allClients, m->sourceID);
         int fd = connectTo(p.hostname, p.port);
         m->type = type;

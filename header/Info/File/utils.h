@@ -22,7 +22,7 @@ int getChunkSize(string chunk) {
     size = file.tellg();
     file.close();
 
-    assert(size <= CHUNKSIZE && "File size should be less than CHUNKSIZE");
+    // assert(size <= CHUNKSIZE && "File size should be less than CHUNKSIZE");
 
     return size;
 }
