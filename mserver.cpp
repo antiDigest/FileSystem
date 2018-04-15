@@ -329,10 +329,12 @@ class Mserver : public Socket {
                     close(fdUpdated);
                     break;
                 }
+
+                // Connecting to broken server again
                 int fdBroken = connectTo(p.hostname, p.port);
                 send(personalfd, fdBroken, "update", msg->message, id, 2,
                      chunk);
-                Message* msg = receive(fdBroken);
+                msg = receive(fdBroken);
             }
         else {
             Logger("[RECOVERING]: No chunks need an update.");
