@@ -86,11 +86,11 @@ class Server : protected Socket {
         if (m->type == "create") {
             createEmptyChunk(m);
         } else if (m->type == "head") {
-            int size = getChunkSize(m->fileName);
+            int size = getChunkSize(directory + "/" + m->fileName);
             cout << size << endl;
             writeReply(m, newsockfd, "head", to_string(size));
         } else if (m->type == "recover") {
-            int size = getChunkSize(m->fileName);
+            int size = getChunkSize(directory + "/" + m->fileName);
             cout << size << endl;
             int offset = stoi(m->message) + 1;
             string line = readFile(directory + "/" + m->fileName, offset,
