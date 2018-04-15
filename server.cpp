@@ -91,6 +91,7 @@ class Server : protected Socket {
             writeReply(m, newsockfd, "head", to_string(size));
         } else if (m->type == "recover") {
             int size = getChunkSize(m->fileName);
+            cout << size << endl;
             int offset = stoi(m->message) + 1;
             string line = readFile(directory + "/" + m->fileName, offset,
                                    (size - offset));

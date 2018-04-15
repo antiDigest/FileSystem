@@ -391,6 +391,13 @@ int main(int argc, char* argv[]) {
 
     Mserver* server = new Mserver(argv);
 
+    // int c1 = getChunkSize("server1Directory/file6_0");
+    // int c2 = getChunkSize("server4Directory/file6_0");
+    // cout << c1 << endl;
+    // cout << c2 << endl;
+
+    // cout << readFile("server1Directory/file6_0", c2, c1 - c2) << endl;
+
     std::thread listenerThread(&Mserver::listener, server);
     std::thread countDown(&Mserver::serversAlive, server);
     countDown.join();
