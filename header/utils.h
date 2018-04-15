@@ -25,8 +25,7 @@ string globalTime() {
 // @message - string to log
 void Logger(string message) {
     logger << "[" << globalTime() << "]::" << message << endl;
-    if (message != "[HEARTBEAT]")
-        cout << "[" << globalTime() << "]::" << message << endl;
+    cout << "[" << globalTime() << "]::" << message << endl;
     logger.flush();
     return;
 }

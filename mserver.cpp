@@ -341,7 +341,7 @@ class Mserver : public Socket {
     // Register the read heartbeat
     // * Updates the alive time at the Server info
     void registerHeartBeat(Message* m, int index) {
-        Logger("[HEARTBEAT] " + m->sourceID, false);
+        Logger("[HEARTBEAT] " + m->sourceID);
         if (allServers[index].getAlive()) {
             allServers[index].setAlive();
             allServers[index].updateFiles(m->message);
