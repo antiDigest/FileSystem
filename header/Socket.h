@@ -126,7 +126,10 @@ class Socket {
         n = write(fd, messageString(m).c_str(), 2048);
         if (n < 0) error("ERROR writing to socket");
 
-        Logger("[SENT TO " + destID + "]: " + m->message);
+        if (message->type != "heartbeat")
+            Logger("[SENT TO " + destID + "]: " + m->message);
+        else
+            Logger("[SENT TO " + destID + "]: " + m->message, false);
     }
 
     // Receive a message from the source (fd) and update clock using message
@@ -146,7 +149,7 @@ class Socket {
         Message *message = getMessage(msg);
         setClock(message->timestamp);
 
-        if (message->message != "heartbeat")
+        if (message->type != "heartbeat")
             Logger("[RECEIVED FROM " + message->sourceID +
                    "]: " + message->message);
         else
