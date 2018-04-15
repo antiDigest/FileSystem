@@ -15,16 +15,8 @@ int getChunkNum(int size) { return size / CHUNKSIZE; }
 
 // Get the number of bytes in the file
 int getChunkSize(string chunk) {
-    int size;
-
     ifstream file(chunk);
-    file.seekg(0, file.end);
-    size = file.tellg();
-    file.close();
-
-    // assert(size <= CHUNKSIZE && "File size should be less than CHUNKSIZE");
-
-    return size;
+    return file.tellg();
 }
 
 // FileInfo to string
