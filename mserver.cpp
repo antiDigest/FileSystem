@@ -6,6 +6,7 @@
         * More structure to directories
         * #includes optimized
         * Ready for Version 0.1
+    Version 1: Project 3 complete
 */
 
 #include "header/Info/Meta/utils.h"
@@ -25,6 +26,8 @@ class Mserver : public Socket {
     */
    private:
     vector<File*> files;
+    priority_queue<Message*> readWriteQueue;
+    bool ready = true;
 
    public:
     Mserver(char* argv[]) : Socket(argv) {
@@ -71,9 +74,21 @@ class Mserver : public Socket {
         if (m->type == "heartbeat") {
             int index = findServerIndex(allServers, m->sourceID);
             registerHeartBeat(m, index);
+        } else if (m->type == "inform") {
+            ready = true;
+            if (readWriteQueue.size() > 0) {
+                m = readWriteQueue.top();
+                readWriteQueue.pop();
+                checkReadWrite(m);
+            }
         } else {
-            checkReadWrite(m);
-            throw "BREAKING CONNECTION";
+            readWriteQueue.push(m);
+            if (ready) {
+                m = readWriteQueue.top();
+                readWriteQueue.pop();
+                checkReadWrite(m);
+                throw "BREAKING CONNECTION";
+            }
         }
     }
 
@@ -83,6 +98,7 @@ class Mserver : public Socket {
     // @m - Message just received
     // @newsockfd - socket stream it was received from
     void checkReadWrite(Message* m) {
+        ready = false;
         switch (m->readWrite) {
             case 1: {
                 checkRead(m);
@@ -121,7 +137,7 @@ class Mserver : public Socket {
                             threeServers, m->offset, m->byteCount);
             } else {
                 sizeSmaller(m, file, to_string(getChunkNum(m->offset)),
-                            threeServers, m->offset, m->byteCount);
+                            threeServers, m->offset, m->byteCount, 0);
             }
         } catch (char* e) {
             Logger(e);
@@ -153,8 +169,10 @@ class Mserver : public Socket {
                 sizeGreater(m, file, chunkName, threeServers, chunkSize,
                             messageSize);
             } else {
-                sizeSmaller(m, file, chunkName, threeServers, 0, messageSize);
+                sizeSmaller(m, file, chunkName, threeServers, 0, messageSize,
+                            0);
             }
+            file->size += messageSize;
         } catch (char* e) {
             Logger(e);
             Logger("[FAILED]");
@@ -184,9 +202,11 @@ class Mserver : public Socket {
                      vector<ProcessInfo> server, int offset, int byteCount) {
         int sizeThisChunk = byteCount - (CHUNKSIZE - offset);
         int extraByteCount = byteCount - sizeThisChunk;
+        int queued = 1;
 
         string source = m->sourceID;
-        sizeSmaller(m, file, chunkName, server, offset, sizeThisChunk);
+        sizeSmaller(m, file, chunkName, server, offset, sizeThisChunk,
+                    queued--);
         chunkName = to_string(stoi(chunkName) + 1);
         vector<ProcessInfo> threeServers;
         try {
@@ -198,7 +218,8 @@ class Mserver : public Socket {
         }
 
         m->sourceID = source;  // TODO: I should not have to do this
-        sizeSmaller(m, file, chunkName, threeServers, 0, extraByteCount);
+        sizeSmaller(m, file, chunkName, threeServers, 0, extraByteCount,
+                    queued);
     }
 
     // When size of the write message size + size of the chunk is greater than
@@ -211,8 +232,9 @@ class Mserver : public Socket {
                      int messageSize) {
         int sizeThisChunk = messageSize - (CHUNKSIZE - chunkSize);
         int sizeNewChunk = messageSize - sizeThisChunk;
+        int queued = 1;
 
-        sizeSmaller(m, file, chunkName, server, 0, sizeThisChunk);
+        sizeSmaller(m, file, chunkName, server, 0, sizeThisChunk, queued--);
 
         chunkName = to_string(stoi(chunkName) + 1);
         createNewChunk(file, chunkName);
@@ -225,24 +247,25 @@ class Mserver : public Socket {
             return;
         }
         sizeSmaller(m, file, chunkName, threeServers, sizeThisChunk,
-                    sizeNewChunk);
+                    sizeNewChunk, queued);
     }
 
     // When size of the write message size + size of the chunk is less than
     // 8192 bytes.
     // The message is written to the last available chunk of the file.
     void sizeSmaller(Message* m, File* file, string chunkName,
-                     vector<ProcessInfo> servers, int offset, int byteCount) {
+                     vector<ProcessInfo> servers, int offset, int byteCount,
+                     int queued) {
         m->offset = offset;
         m->byteCount = byteCount;
-        replyMeta(m, file->name, chunkName, servers);
+        replyMeta(m, file->name, chunkName, servers, queued);
     }
 
     // reply with the meta information of reading or writing to a file. The
     // meta-server replies with the chunk number, the server the file is on, and
     // the file name
     void replyMeta(Message* m, string fileName, string chunkName,
-                   vector<ProcessInfo> servers) {
+                   vector<ProcessInfo> servers, int queued) {
         vector<ProcessInfo> set;
         for (ProcessInfo server : servers) {
             if (server.getReady())
@@ -258,7 +281,8 @@ class Mserver : public Socket {
             }
         }
 
-        MetaInfo* meta = new MetaInfo(fileName, chunkName, makeTuple(set));
+        MetaInfo* meta =
+            new MetaInfo(fileName, chunkName, makeTuple(set), queued);
         string line = infoToString(meta);
 
         if (!set.empty()) {
@@ -285,9 +309,8 @@ class Mserver : public Socket {
     }
 
     // Updating meta-data in the meta Directory
-    void updateMetaData(File* file, ProcessInfo server, int msgSize = 0) {
+    void updateMetaData(File* file, ProcessInfo server) {
         server.addFile(getChunkFile(file->name, to_string(file->chunks)));
-        file->size += msgSize;
         Logger("[Meta-Data Updated]");
         updateServers(server);
     }
@@ -371,17 +394,6 @@ class Mserver : public Socket {
 
     ~Mserver() { updateCsv("csvs/files.csv", files); }
 };
-
-// IO for continuous read and write messages
-// @client - Process
-void io(Mserver* mserver) {
-    int rw = 25;
-    int i = 0;
-    sleep(rw);
-    for (ProcessInfo server : mserver->allServers) {
-        cout << server.getAlive() << endl;
-    }
-}
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {

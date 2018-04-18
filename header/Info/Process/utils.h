@@ -49,6 +49,14 @@ int findServerIndex(vector<ProcessInfo> clients, string name) {
     return -1;
 }
 
+// Check if the vector has the file we are looking for or not
+bool hasFile(vector<string> files, string file) {
+    for (string f : files) {
+        if (f == file) return true;
+    }
+    return false;
+}
+
 // Check if the process has the file we are looking for or not
 bool hasFile(ProcessInfo client, string file) {
     // if (!client.getReady()) return false;

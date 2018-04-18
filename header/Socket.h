@@ -163,7 +163,7 @@ class Socket {
              m->fileName);
     }
 
-    // Connect to a process and senc the message
+    // Connect to a server and senc the message
     // @processID - process ID of the process to send to
     // @type - type of message
     // @rw - read/write

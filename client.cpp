@@ -6,6 +6,7 @@
         * More structure to directories
         * #includes optimized
         * Ready for Version 0.1
+    Version 1: Project 3 complete
 */
 
 #include "header/Info/Meta/utils.h"
@@ -21,6 +22,10 @@ class Process : public Socket {
    private:
     bool pendingEnquiry = false, pendingRead = false, pendingWrite = false;
     string pendingWriteMessage;
+    int commitsRequired = 0;
+    bool abortCommit = false;
+    queue<string> commitMessages;
+    vector<string> commitServers;
 
    public:
     // Enquires about the files in the system
@@ -74,16 +79,31 @@ class Process : public Socket {
             vector<string> threeServers = getFromTuple(meta->server);
             if (m->readWrite == 1) {
                 ProcessInfo server = findInVector(allServers, threeServers[0]);
-                criticalSection(m, server);
+                readFromServer(m, server);
             } else if (m->readWrite == 2) {
-                for (string s : threeServers) {
-                    ProcessInfo server = findInVector(allServers, s);
-                    criticalSection(m, server);
-                }
+                twoPhaseCommit(m, threeServers);
             }
-        }
-        // Failed response from meta-server
-        else if (m->type == "FAILED") {
+
+            if (meta->queued == 0) {
+                ProcessInfo p = mserver[0];
+                int fd = connectTo(p.hostname, p.port);
+                send(personalfd, fd, "inform", "", p.processID);
+                close(fd);
+            }
+
+        } else if (m->type == "abort") {
+            abortCommit = true;
+            Logger("[TWO PHASE COMMIT]: [ABORT]");
+            commitsRequired = 0;
+            commitMessages.pop();
+        } else if (m->type == "commit") {
+            commitsRequired--;
+            if (commitsRequired == 0) {
+                Logger("[TWO PHASE COMMIT]: [COMMIT]");
+                writeToServers(m, commitServers, commitMessages.front());
+                commitMessages.pop();
+            }
+        } else if (m->type == "FAILED") {
             // TODO: write response from a server
             if (m->readWrite == 1) {
                 pendingRead = false;
@@ -133,8 +153,39 @@ class Process : public Socket {
 
     // Section where the client corresponds with the server for read/write
     // @m - Message that was initially sent for request
-    void criticalSection(Message *m, ProcessInfo server) {
-        string cs = "[CRITICAL SECTION]";
+    void writeToServers(Message *m, vector<string> threeServers,
+                        string commitMessage) {
+        string cs = "[WRITE TO SERVER]";
+        int fd;
+        for (string s : threeServers) {
+            ProcessInfo server = findInVector(allServers, s);
+            Logger(cs);
+
+            fd = -1;
+            while (fd < 0) {
+                try {
+                    fd = connectTo(server.hostname, server.port);
+                } catch (const char *e) {
+                    Logger(cs + e);
+                    Logger(cs + "[FAILED]");
+                    return;
+                }
+            }
+
+            m->message = commitMessage;
+            m->offset = getOffset(m->offset);
+            send(m, fd, server.processID);
+            Message *msg = receive(fd);
+            Logger(cs + "[WRITE]" + m->fileName + "[LINE]" + msg->message);
+
+            Logger(cs + "[EXIT]");
+        }
+    }
+
+    // Section where the client corresponds with the server for read/write
+    // @m - Message that was initially sent for request
+    void readFromServer(Message *m, ProcessInfo server) {
+        string cs = "[READ FROM SERVER]";
         Logger(cs);
 
         int fd = -1;
@@ -143,24 +194,26 @@ class Process : public Socket {
                 fd = connectTo(server.hostname, server.port);
             } catch (const char *e) {
                 Logger(cs + e);
-                Logger("[FAILED]");
+                Logger(cs + "[FAILED]");
                 return;
             }
         }
 
-        if (m->readWrite == 1) {
-            m->offset = getOffset(m->offset);
-            send(m, fd, server.processID);
-            Message *msg = receive(fd);
-            Logger(cs + "[READ]" + m->fileName + "[LINE]" + msg->message);
-        } else if (m->readWrite == 2) {
-            m->message = pendingWriteMessage;
-            send(m, fd, server.processID);
-            Message *msg = receive(fd);
-            Logger(cs + "[WRITE]" + m->fileName + "[LINE]" + m->message);
-        }
+        m->offset = getOffset(m->offset);
+        send(m, fd, server.processID);
+        Message *msg = receive(fd);
+        Logger(cs + "[READ]" + m->fileName + "[LINE]" + msg->message);
 
         Logger(cs + "[EXIT]");
+    }
+
+    void twoPhaseCommit(Message *m, vector<string> threeServers) {
+        Logger("[TWO PHASE COMMIT]");
+        for (string server : threeServers) {
+            connectAndSend(server, "twophase", m->message, 2, m->fileName);
+            commitsRequired++;
+        }
+        commitServers = threeServers;
     }
 
     // Get Meta Data from the Meta-Server, send the meta-server a request for
@@ -173,9 +226,9 @@ class Process : public Socket {
                      int byteCount = 0) {
         ProcessInfo p = mserver[0];
         int fd = connectTo(p.hostname, p.port);
+        Message *m = new Message(rw, "request", message, personalfd, id, fd,
+                                 clock, fileName);
         if (offset > 0 || byteCount > 0) {
-            Message *m = new Message(rw, "request", message, personalfd, id, fd,
-                                     clock, fileName);
             m->offset = offset;
             m->byteCount = byteCount;
             send(m, fd, p.processID);
@@ -186,7 +239,7 @@ class Process : public Socket {
             pendingRead = true;
         } else {
             pendingWrite = true;
-            pendingWriteMessage = message;
+            commitMessages.push(m->message);
         }
         close(fd);
     }

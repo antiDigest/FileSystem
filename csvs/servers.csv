@@ -1,5 +1,5 @@
-server1,0.0.0.0,9002,antriksh
-server2,0.0.0.0,9003,antriksh
-server3,0.0.0.0,9004,antriksh
-server4,0.0.0.0,9005,antriksh
-server5,0.0.0.0,9006,antriksh
+server1,0.0.0.0,8002,antriksh
+#server2,0.0.0.0,9003,antriksh
+#server3,0.0.0.0,9004,antriksh
+#server4,0.0.0.0,9005,antriksh
+#server5,0.0.0.0,9006,antriksh

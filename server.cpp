@@ -6,6 +6,7 @@
         * More structure to directories
         * #includes optimized
         * Ready for Version 0.1
+    Version 1: Project 3 complete
 */
 
 #include "header/Info/Meta/utils.h"
@@ -92,13 +93,19 @@ class Server : protected Socket {
         } else if (m->type == "recover") {
             int size = getChunkSize(directory + "/" + m->fileName);
             cout << size << endl;
-            int offset = stoi(m->message) + 1;
+            int offset = stoi(m->message);
             string line = readFile(directory + "/" + m->fileName, offset,
                                    (size - offset));
             writeReply(m, newsockfd, "recover", line);
         } else if (m->type == "update") {
             writeToFile(directory + "/" + m->fileName, m->message);
             writeReply(m, newsockfd, "update", m->message);
+        } else if (m->type == "twophase") {
+            if (hasFile(files, m->fileName)) {
+                connectAndReply(m, "commit", "commit");
+            } else {
+                connectAndReply(m, "abort", "abort");
+            }
         } else {
             this->checkReadWrite(m, newsockfd);
         }
