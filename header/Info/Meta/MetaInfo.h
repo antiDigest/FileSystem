@@ -10,9 +10,10 @@ class MetaInfo {
     string name;
     string chunkName;
     string server;
+    int queued;
 
-    MetaInfo(string name, string chunkName, string server)
-        : name(name), chunkName(chunkName), server(server) {}
+    MetaInfo(string name, string chunkName, string server, int queued)
+        : name(name), chunkName(chunkName), server(server), queued(queued) {}
 
     string getChunkFile() { return name + "_" + chunkName; }
 };

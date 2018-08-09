@@ -15,16 +15,11 @@ int getChunkNum(int size) { return size / CHUNKSIZE; }
 
 // Get the number of bytes in the file
 int getChunkSize(string chunk) {
-    int size;
-
-    ifstream file(chunk);
-    file.seekg(0, file.end);
-    size = file.tellg();
-    file.close();
-
-    // assert(size <= CHUNKSIZE && "File size should be less than CHUNKSIZE");
-
-    return size;
+    ifstream file(chunk.c_str(), ios::binary | ios::ate);
+    return file.tellg();
+    // struct stat stat_buf;
+    // int rc = stat(chunk.c_str(), &stat_buf);
+    // return rc == 0 ? stat_buf.st_size : -1;
 }
 
 // FileInfo to string

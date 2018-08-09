@@ -3,6 +3,9 @@
     @author: antriksh
     Version 0: 3/14/2018
 */
+#include <set>
+
+using namespace std;
 
 // Store information of a process
 class ProcessInfo {
@@ -17,7 +20,7 @@ class ProcessInfo {
     time_t aliveTime = time(0);
     bool alive = true;
     vector<string> files;
-    vector<string> chunksNeedUpdate;
+    set<string> chunksNeedUpdate;
     bool ready = true;
 
     void setAlive() {

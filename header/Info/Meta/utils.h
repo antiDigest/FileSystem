@@ -21,8 +21,10 @@ MetaInfo* stringToInfo(string line) {
     string chunkName = item;
     getline(ss, item, ':');
     string server = item;
+    getline(ss, item, ':');
+    int queued = stoi(item);
 
-    MetaInfo* meta = new MetaInfo(name, chunkName, server);
+    MetaInfo* meta = new MetaInfo(name, chunkName, server, queued);
 
     return meta;
 }
@@ -41,5 +43,6 @@ vector<MetaInfo*> getMetaInfo(string fileName) {
 
 // Converts info to tuple
 string infoToString(MetaInfo* m) {
-    return m->name + ":" + m->chunkName + ":" + m->server;
+    return m->name + ":" + m->chunkName + ":" + m->server + ":" +
+           to_string(m->queued);
 }
